@@ -180,7 +180,12 @@ agent -p 'Analyze this screenshot: screenshot.png'
 
 **CRITICAL:** When running Cursor CLI from automated environments (AI agents, scripts, subprocess calls), the CLI requires a real TTY. Direct execution will hang indefinitely.
 
-**The Solution: Use tmux**
+**The Solution: Use tmux + `-p` mode (recommended)**
+
+The `-p` (print) mode is ideal for automation:
+- Non-interactive output (no TUI)
+- Clean text/JSON output
+- Automatically exits when complete
 
 ```bash
 # 1. Install tmux if not available
@@ -191,25 +196,45 @@ brew install tmux      # macOS
 tmux kill-session -t cursor 2>/dev/null || true
 tmux new-session -d -s cursor
 
-# 3. Navigate to project
-tmux send-keys -t cursor "cd /path/to/project" Enter
-sleep 1
+# 3. Run Cursor agent with -p mode
+tmux send-keys -t cursor "cd /path/to/project && agent -p 'Your task here' --output-format text" Enter
 
-# 4. Run Cursor agent
-tmux send-keys -t cursor "agent 'Your task here'" Enter
-
-# 5. Handle workspace trust prompt (first run)
+# 4. Handle workspace trust prompt (first run only)
 sleep 3
 tmux send-keys -t cursor "a"  # Trust workspace
 
-# 6. Wait for completion
+# 5. Smart wait for completion (detect shell prompt)
+while true; do
+  last_line=$(tmux capture-pane -t cursor -p | grep -v '^$' | tail -1)
+  if echo "$last_line" | grep -qE '(\$|%)\s*$' && ! echo "$last_line" | grep -q "agent -p"; then
+    break
+  fi
+  sleep 3
+done
+
+# 6. Capture output
+tmux capture-pane -t cursor -p
+```
+
+**Why `-p` mode is better for automation:**
+- No interactive TUI (cleaner output)
+- Exits automatically when task completes
+- Works with `--output-format text/json`
+- No need to poll for progress percentage
+
+**Alternative: Interactive mode (for complex tasks)**
+
+For tasks requiring multiple interactions or live monitoring:
+
+```bash
+# Run in interactive mode
+tmux send-keys -t cursor "agent 'Your task here'" Enter
+
+# Wait with fixed timeout (less reliable)
 sleep 60  # Adjust based on task complexity
 
-# 7. Capture output
+# Capture output
 tmux capture-pane -t cursor -p -S -100
-
-# 8. Verify results
-ls -la /path/to/project/
 ```
 
 **Why this works:**
@@ -224,6 +249,52 @@ agent "task"                    # No TTY
 agent -p "task"                 # No TTY  
 subprocess.run(["agent", ...])  # No TTY
 script -c "agent ..." /dev/null # May crash Cursor
+```
+
+### Helper Script: cursor-run.sh
+
+For convenient automation, use this helper script:
+
+```bash
+#!/bin/bash
+# cursor-run.sh - Run Cursor agent tasks with smart completion detection
+# Usage: cursor-run.sh "agent -p 'your task' --output-format text"
+
+TMUX_SESSION="${CURSOR_TMUX_SESSION:-cursor}"
+WORKDIR="${CURSOR_WORKDIR:-$(pwd)}"
+TIMEOUT="${CURSOR_TIMEOUT:-300}"  # 5 minutes default
+POLL_INTERVAL=3
+
+# Ensure tmux session exists
+if ! tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+  tmux new-session -d -s "$TMUX_SESSION"
+  sleep 1
+fi
+
+# Send command
+tmux send-keys -t "$TMUX_SESSION" "cd $WORKDIR && $1" Enter
+
+# Wait for completion (detect shell prompt)
+start_time=$(date +%s)
+while true; do
+  elapsed=$(( $(date +%s) - start_time ))
+  [ $elapsed -ge $TIMEOUT ] && echo "ERROR: Timeout" >&2 && exit 1
+  
+  last_line=$(tmux capture-pane -t "$TMUX_SESSION" -p | grep -v '^$' | tail -1)
+  if echo "$last_line" | grep -qE '(\$|%)\s*$' && ! echo "$last_line" | grep -q "agent -p"; then
+    break
+  fi
+  sleep $POLL_INTERVAL
+done
+
+# Output result
+tmux capture-pane -t "$TMUX_SESSION" -p | sed '/^$/d'
+```
+
+**Usage:**
+```bash
+chmod +x cursor-run.sh
+./cursor-run.sh "agent -p 'Analyze this codebase' --output-format text"
 ```
 
 ## Rules & Configuration
