@@ -33,11 +33,7 @@ if (!API_KEY) {
   }
 }
 
-if (!API_KEY) {
-  console.error("Error: CONTEXT7_API_KEY not found");
-  console.error("Set it in environment or in .env file in this directory");
-  process.exit(1);
-}
+// API key is optional — Context7 API works without it
 
 const command = process.argv[2];
 const repoName = process.argv[3];
@@ -84,11 +80,10 @@ async function searchLibraries() {
     url.searchParams.set("libraryName", libraryId.split("/")[1] || "");
     url.searchParams.set("query", query);
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        "Authorization": `Bearer ${API_KEY}`,
-      },
-    });
+    const headers: Record<string, string> = {};
+    if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
+
+    const response = await fetch(url.toString(), { headers });
 
     if (!response.ok) {
       const error = await response.text();
@@ -100,12 +95,14 @@ async function searchLibraries() {
     
     console.log("\n=== Search Results ===\n");
     
-    if (Array.isArray(data) && data.length > 0) {
-      data.forEach((lib: any, i: number) => {
-        console.log(`${i + 1}. ${lib.name || lib.id}`);
-        console.log(`   Trust Score: ${lib.trustScore || "N/A"}`);
-        console.log(`   Benchmark: ${lib.benchmarkScore || "N/A"}`);
-        if (lib.versions) {
+    if (Array.isArray(data?.results) ? data.results.length > 0 : Array.isArray(data) && data.length > 0) {
+      const results = Array.isArray(data.results) ? data.results : data;
+      results.forEach((lib: any, i: number) => {
+        console.log(`${i + 1}. ${lib.title || lib.name || lib.id}`);
+        console.log(`   ID: ${lib.id}`);
+        console.log(`   Trust Score: ${lib.trustScore ?? "N/A"}`);
+        console.log(`   Benchmark: ${lib.benchmarkScore ?? "N/A"}`);
+        if (lib.versions?.length) {
           console.log(`   Versions: ${lib.versions.slice(0, 5).join(", ")}${lib.versions.length > 5 ? "..." : ""}`);
         }
         console.log("");
@@ -129,11 +126,10 @@ async function getContext() {
     url.searchParams.set("query", query);
     url.searchParams.set("type", "txt");
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        "Authorization": `Bearer ${API_KEY}`,
-      },
-    });
+    const headers: Record<string, string> = {};
+    if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
+
+    const response = await fetch(url.toString(), { headers });
 
     if (!response.ok) {
       const error = await response.text();
