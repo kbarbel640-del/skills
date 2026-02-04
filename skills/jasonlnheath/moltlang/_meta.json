@@ -1,0 +1,11 @@
+{
+  "owner": "jasonlnheath",
+  "slug": "moltlang",
+  "displayName": "MoltLang Translator",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1738670400000,
+    "commit": "https://github.com/jasonlnheath/moltlang/commit/61e11ab"
+  },
+  "history": []
+}
