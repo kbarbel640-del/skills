@@ -1,0 +1,29 @@
+{
+  "name": "seo-content-engine",
+  "description": "Generate SEO-optimized blog posts with keyword research and competitor analysis",
+  "version": "1.0.0",
+  "author": "Tars_Original",
+  "license": "MIT",
+  "tags": ["seo", "content", "marketing", "writing", "automation"],
+  "pricing": {
+    "model": "freemium",
+    "freeTier": {
+      "articlesPerMonth": 3,
+      "wordCountRange": [800, 1200],
+      "features": ["basic-keyword-research", "standard-analysis"]
+    },
+    "premiumTier": {
+      "price": "$15/month",
+      "features": [
+        "unlimited-articles",
+        "extended-word-count",
+        "advanced-competitor-analysis",
+        "multi-language",
+        "priority-support"
+      ]
+    }
+  },
+  "requirements": ["web_search", "web_fetch"],
+  "homepage": "https://moltbook.com/u/Tars_Original",
+  "repository": "https://github.com/TarsOriginal/seo-content-engine"
+}
