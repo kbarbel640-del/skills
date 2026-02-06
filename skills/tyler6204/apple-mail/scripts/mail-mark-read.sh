@@ -31,6 +31,13 @@ MARKED=0
 FAILED=0
 
 for MSG_ID in "$@"; do
+    # Validate MSG_ID is numeric to prevent SQL injection
+    if ! [[ "$MSG_ID" =~ ^[0-9]+$ ]]; then
+        echo "Error: Invalid message ID '$MSG_ID' (must be numeric)" >&2
+        FAILED=$((FAILED + 1))
+        continue
+    fi
+    
     # Get account UUID, mailbox path, and approximate position
     MSG_INFO=$(sqlite3 "$DB_PATH" "
     SELECT 
@@ -48,7 +55,8 @@ for MSG_ID in "$@"; do
     fi
     
     IFS='|' read -r ACCOUNT_UUID MAILBOX_PATH APPROX_POS <<< "$MSG_INFO"
-    MAILBOX_PATH=$(python3 -c "import urllib.parse; print(urllib.parse.unquote('$MAILBOX_PATH'))")
+    # Use stdin to avoid command injection
+    MAILBOX_PATH=$(echo "$MAILBOX_PATH" | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")
     
     START_POS=$((APPROX_POS > 5 ? APPROX_POS - 5 : 1))
     END_POS=$((APPROX_POS + 20))

@@ -14,23 +14,24 @@ if [ -z "$TO" ] || [ -z "$SUBJECT" ] || [ -z "$BODY" ]; then
     exit 1
 fi
 
-# Escape quotes in body and trim whitespace
-BODY_ESCAPED=$(printf '%s' "$BODY" | sed 's/"/\\"/g')
-SUBJECT_ESCAPED=$(printf '%s' "$SUBJECT" | sed 's/"/\\"/g')
+# Escape backslashes and quotes to prevent AppleScript injection
+BODY_ESCAPED=$(printf '%s' "$BODY" | sed 's/\\/\\\\/g; s/"/\\"/g')
+SUBJECT_ESCAPED=$(printf '%s' "$SUBJECT" | sed 's/\\/\\\\/g; s/"/\\"/g')
+TO_ESCAPED=$(printf '%s' "$TO" | sed 's/\\/\\\\/g; s/"/\\"/g')
 
 if [ -n "$FROM_ACCOUNT" ] && [ -n "$ATTACHMENT" ]; then
     osascript <<EOF
 tell application "Mail"
     set newMessage to make new outgoing message with properties {subject:"$SUBJECT_ESCAPED", content:"$BODY_ESCAPED", visible:false}
     tell newMessage
-        make new to recipient at end of to recipients with properties {address:"$TO"}
+        make new to recipient at end of to recipients with properties {address:"$TO_ESCAPED"}
         set sender to "$FROM_ACCOUNT"
         tell content
             make new attachment with properties {file name:POSIX file "$ATTACHMENT"} at after last paragraph
         end tell
     end tell
     send newMessage
-    return "Email sent to $TO"
+    return "Email sent to $TO_ESCAPED"
 end tell
 EOF
 elif [ -n "$FROM_ACCOUNT" ]; then
@@ -38,11 +39,11 @@ elif [ -n "$FROM_ACCOUNT" ]; then
 tell application "Mail"
     set newMessage to make new outgoing message with properties {subject:"$SUBJECT_ESCAPED", content:"$BODY_ESCAPED", visible:false}
     tell newMessage
-        make new to recipient at end of to recipients with properties {address:"$TO"}
+        make new to recipient at end of to recipients with properties {address:"$TO_ESCAPED"}
         set sender to "$FROM_ACCOUNT"
     end tell
     send newMessage
-    return "Email sent to $TO"
+    return "Email sent to $TO_ESCAPED"
 end tell
 EOF
 elif [ -n "$ATTACHMENT" ]; then
@@ -50,13 +51,13 @@ elif [ -n "$ATTACHMENT" ]; then
 tell application "Mail"
     set newMessage to make new outgoing message with properties {subject:"$SUBJECT_ESCAPED", content:"$BODY_ESCAPED", visible:false}
     tell newMessage
-        make new to recipient at end of to recipients with properties {address:"$TO"}
+        make new to recipient at end of to recipients with properties {address:"$TO_ESCAPED"}
         tell content
             make new attachment with properties {file name:POSIX file "$ATTACHMENT"} at after last paragraph
         end tell
     end tell
     send newMessage
-    return "Email sent to $TO"
+    return "Email sent to $TO_ESCAPED"
 end tell
 EOF
 else
@@ -64,10 +65,10 @@ else
 tell application "Mail"
     set newMessage to make new outgoing message with properties {subject:"$SUBJECT_ESCAPED", content:"$BODY_ESCAPED", visible:false}
     tell newMessage
-        make new to recipient at end of to recipients with properties {address:"$TO"}
+        make new to recipient at end of to recipients with properties {address:"$TO_ESCAPED"}
     end tell
     send newMessage
-    return "Email sent to $TO"
+    return "Email sent to $TO_ESCAPED"
 end tell
 EOF
 fi

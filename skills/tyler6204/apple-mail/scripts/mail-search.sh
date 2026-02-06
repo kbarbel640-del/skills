@@ -11,11 +11,14 @@ if [ -z "$QUERY" ]; then
     exit 1
 fi
 
+# Escape backslashes and quotes to prevent AppleScript injection
+QUERY_ESCAPED=$(printf '%s' "$QUERY" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
 osascript <<EOF
 tell application "Mail"
     set output to ""
     set foundMsgs to {}
-    set searchQuery to "$QUERY"
+    set searchQuery to "$QUERY_ESCAPED"
     set limitCount to $LIMIT
     
     if "$MAILBOX" is not "" then

@@ -8,6 +8,9 @@ set -e
 QUERY="${1:?Usage: mail-fast-search.sh <query> [limit]}"
 LIMIT="${2:-20}"
 
+# Escape single quotes to prevent SQL injection
+QUERY_ESCAPED=$(echo "$QUERY" | sed "s/'/''/g")
+
 # Find the Mail envelope index database
 find_db() {
     local db
@@ -51,9 +54,9 @@ SELECT
 FROM messages m
 LEFT JOIN subjects s ON m.subject = s.ROWID
 LEFT JOIN addresses a ON m.sender = a.ROWID
-WHERE s.subject LIKE '%${QUERY}%' 
-   OR a.address LIKE '%${QUERY}%'
-   OR a.comment LIKE '%${QUERY}%'
+WHERE s.subject LIKE '%${QUERY_ESCAPED}%' 
+   OR a.address LIKE '%${QUERY_ESCAPED}%'
+   OR a.comment LIKE '%${QUERY_ESCAPED}%'
 ORDER BY m.date_sent DESC
 LIMIT ${LIMIT};
 "

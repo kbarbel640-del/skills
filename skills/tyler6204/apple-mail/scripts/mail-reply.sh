@@ -11,7 +11,14 @@ if [ -z "$MSG_ID" ] || [ -z "$REPLY_BODY" ]; then
     exit 1
 fi
 
-REPLY_BODY_ESCAPED=$(echo "$REPLY_BODY" | sed 's/"/\\"/g')
+# Validate MSG_ID is numeric to prevent injection
+if ! [[ "$MSG_ID" =~ ^[0-9]+$ ]]; then
+    echo "Error: Invalid message ID (must be numeric)" >&2
+    exit 1
+fi
+
+# Escape backslashes and quotes to prevent AppleScript injection
+REPLY_BODY_ESCAPED=$(printf '%s' "$REPLY_BODY" | sed 's/\\/\\\\/g; s/"/\\"/g')
 
 osascript <<EOF
 tell application "Mail"
