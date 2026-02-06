@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# video-understand: Simple video comprehension via transcription + frame analysis
+
+FRAMES=8
+TRANSCRIPT_ONLY=false
+FRAMES_ONLY=false
+OUTPUT=""
+JSON_OUTPUT=false
+VERBOSE=false
+VIDEO_FILE=""
+
+usage() {
+    cat <<EOF
+Usage: video-understand <video-file> [options]
+
+Understand any video by combining audio transcription with visual frame analysis.
+
+Options:
+    --frames <n>        Number of frames to extract (default: 8)
+    --transcript-only   Only transcribe audio, skip visual analysis
+    --frames-only       Only analyze frames, skip transcription
+    --output <file>     Write output to file (default: stdout)
+    --json              Output as JSON
+    --verbose           Show progress
+    -h, --help          Show this help
+
+Examples:
+    video-understand clip.mp4
+    video-understand meeting.mov --frames 20
+    video-understand demo.mp4 --json
+EOF
+    exit 0
+}
+
+log() {
+    if $VERBOSE; then
+        echo "[video-understand] $*" >&2
+    fi
+}
+
+error() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --frames)
+            FRAMES="$2"
+            shift 2
+            ;;
+        --transcript-only)
+            TRANSCRIPT_ONLY=true
+            shift
+            ;;
+        --frames-only)
+            FRAMES_ONLY=true
+            shift
+            ;;
+        --output)
+            OUTPUT="$2"
+            shift 2
+            ;;
+        --json)
+            JSON_OUTPUT=true
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        -*)
+            error "Unknown option: $1"
+            ;;
+        *)
+            VIDEO_FILE="$1"
+            shift
+            ;;
+    esac
+done
+
+[[ -z "$VIDEO_FILE" ]] && error "No video file specified"
+[[ ! -f "$VIDEO_FILE" ]] && error "Video file not found: $VIDEO_FILE"
+
+# Check dependencies
+command -v ffmpeg >/dev/null || error "ffmpeg not found"
+command -v ffprobe >/dev/null || error "ffprobe not found"
+
+# Create temp directory
+WORK_DIR=$(mktemp -d)
+trap "rm -rf $WORK_DIR" EXIT
+
+log "Processing: $VIDEO_FILE"
+
+# Get video duration
+DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$VIDEO_FILE" 2>/dev/null || echo "0")
+DURATION=${DURATION%.*}  # Remove decimals
+log "Duration: ${DURATION}s"
+
+TRANSCRIPT=""
+FRAME_ANALYSES=""
+
+# --- Transcription ---
+if ! $FRAMES_ONLY; then
+    log "Extracting audio..."
+    AUDIO_FILE="$WORK_DIR/audio.wav"
+    
+    # Extract audio (suppress errors for videos without audio)
+    if ffmpeg -y -i "$VIDEO_FILE" -vn -acodec pcm_s16le -ar 16000 -ac 1 "$AUDIO_FILE" 2>/dev/null; then
+        # Check if audio file has content
+        AUDIO_SIZE=$(stat -f%z "$AUDIO_FILE" 2>/dev/null || stat -c%s "$AUDIO_FILE" 2>/dev/null || echo "0")
+        
+        if [[ "$AUDIO_SIZE" -gt 1000 ]]; then
+            log "Transcribing with Whisper API..."
+            
+            # Use OpenAI Whisper API
+            WHISPER_RESPONSE=$(curl -s https://api.openai.com/v1/audio/transcriptions \
+                -H "Authorization: Bearer $OPENAI_API_KEY" \
+                -F "file=@$AUDIO_FILE" \
+                -F "model=whisper-1" \
+                -F "response_format=text" 2>/dev/null || echo "")
+            
+            if [[ -n "$WHISPER_RESPONSE" ]]; then
+                TRANSCRIPT="$WHISPER_RESPONSE"
+                log "Transcription complete (${#TRANSCRIPT} chars)"
+            else
+                log "Transcription failed or returned empty"
+            fi
+        else
+            log "No audio track or audio too short"
+        fi
+    else
+        log "No audio track found"
+    fi
+fi
+
+# --- Frame Extraction & Analysis ---
+if ! $TRANSCRIPT_ONLY; then
+    log "Extracting $FRAMES frames..."
+    
+    # Calculate frame interval
+    if [[ "$DURATION" -gt 0 && "$FRAMES" -gt 0 ]]; then
+        INTERVAL=$((DURATION / FRAMES))
+        [[ "$INTERVAL" -lt 1 ]] && INTERVAL=1
+    else
+        INTERVAL=1
+    fi
+    
+    # Extract frames
+    FRAME_DIR="$WORK_DIR/frames"
+    mkdir -p "$FRAME_DIR"
+    
+    ffmpeg -y -i "$VIDEO_FILE" -vf "fps=1/$INTERVAL" -frames:v "$FRAMES" "$FRAME_DIR/frame_%03d.jpg" 2>/dev/null || true
+    
+    # Count extracted frames
+    FRAME_COUNT=$(ls -1 "$FRAME_DIR"/*.jpg 2>/dev/null | wc -l | tr -d ' ')
+    log "Extracted $FRAME_COUNT frames"
+    
+    if [[ "$FRAME_COUNT" -gt 0 ]]; then
+        log "Analyzing frames with vision model..."
+        
+        # Build frame descriptions
+        FRAME_DESCRIPTIONS=""
+        FRAME_NUM=0
+        
+        for frame in "$FRAME_DIR"/*.jpg; do
+            FRAME_NUM=$((FRAME_NUM + 1))
+            TIMESTAMP=$((FRAME_NUM * INTERVAL))
+            
+            # Base64 encode frame
+            FRAME_B64=$(base64 -i "$frame" | tr -d '\n')
+            
+            # Call vision API (using OpenAI GPT-4V)
+            VISION_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $OPENAI_API_KEY" \
+                -d "{
+                    \"model\": \"gpt-4o\",
+                    \"messages\": [{
+                        \"role\": \"user\",
+                        \"content\": [
+                            {\"type\": \"text\", \"text\": \"Briefly describe what you see in this video frame (1-2 sentences). Be specific about any text, UI elements, people, or actions visible.\"},
+                            {\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/jpeg;base64,$FRAME_B64\"}}
+                        ]
+                    }],
+                    \"max_tokens\": 150
+                }" 2>/dev/null)
+            
+            FRAME_DESC=$(echo "$VISION_RESPONSE" | jq -r '.choices[0].message.content // "Unable to analyze frame"' 2>/dev/null || echo "Unable to analyze frame")
+            
+            FRAME_DESCRIPTIONS="${FRAME_DESCRIPTIONS}
+**~${TIMESTAMP}s:** $FRAME_DESC"
+            
+            log "Frame $FRAME_NUM/$FRAME_COUNT analyzed"
+        done
+        
+        FRAME_ANALYSES="$FRAME_DESCRIPTIONS"
+    fi
+fi
+
+# --- Generate Output ---
+log "Generating output..."
+
+if $JSON_OUTPUT; then
+    # JSON output
+    OUTPUT_CONTENT=$(jq -n \
+        --arg transcript "$TRANSCRIPT" \
+        --arg frames "$FRAME_ANALYSES" \
+        --arg file "$VIDEO_FILE" \
+        --arg duration "$DURATION" \
+        '{
+            file: $file,
+            duration_seconds: ($duration | tonumber),
+            transcript: $transcript,
+            frame_analysis: $frames
+        }')
+else
+    # Markdown output
+    OUTPUT_CONTENT="# Video Understanding: $(basename "$VIDEO_FILE")
+
+**Duration:** ${DURATION}s
+**Frames analyzed:** $FRAMES
+"
+
+    if [[ -n "$TRANSCRIPT" ]]; then
+        OUTPUT_CONTENT="$OUTPUT_CONTENT
+## Transcript
+
+$TRANSCRIPT
+"
+    fi
+
+    if [[ -n "$FRAME_ANALYSES" ]]; then
+        OUTPUT_CONTENT="$OUTPUT_CONTENT
+## Visual Analysis
+$FRAME_ANALYSES
+"
+    fi
+
+    # Generate summary if we have both
+    if [[ -n "$TRANSCRIPT" && -n "$FRAME_ANALYSES" ]]; then
+        OUTPUT_CONTENT="$OUTPUT_CONTENT
+## Summary
+
+Audio: $(echo "$TRANSCRIPT" | wc -w | tr -d ' ') words transcribed
+Visual: $FRAME_COUNT frames analyzed across ${DURATION}s
+"
+    fi
+fi
+
+# Output
+if [[ -n "$OUTPUT" ]]; then
+    echo "$OUTPUT_CONTENT" > "$OUTPUT"
+    log "Output written to: $OUTPUT"
+else
+    echo "$OUTPUT_CONTENT"
+fi
+
+log "Done"
