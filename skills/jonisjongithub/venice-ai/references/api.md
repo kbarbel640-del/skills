@@ -230,7 +230,7 @@ POST /images/edits
 POST /images/upscale
 ```
 
-> For detailed image/video API usage, see the `venice-ai-media` skill which has dedicated scripts.
+> See `venice-image.py`, `venice-upscale.py`, and `venice-edit.py` in the scripts folder for CLI usage.
 
 ---
 
@@ -246,7 +246,7 @@ POST /video/generate
 POST /video/generate/quote
 ```
 
-> For detailed video API usage, see the `venice-ai-media` skill.
+> See `venice-video.py` in the scripts folder for CLI usage.
 
 ---
 
