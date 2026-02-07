@@ -6,6 +6,9 @@ read_when:
   - Extracting structured data from pages
   - Filling forms programmatically
   - Testing web UIs
+requirements:
+  - network
+  - browser
 metadata: {"clawdbot":{"emoji":"🌐","requires":{"bins":["node","npm"]}}}
 allowed-tools: Bash(agent-browser:*)
 ---

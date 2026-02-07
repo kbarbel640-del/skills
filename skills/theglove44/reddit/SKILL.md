@@ -1,6 +1,8 @@
 ---
 name: reddit
 description: Browse, search, post, and moderate Reddit. Read-only works without auth; posting/moderation requires OAuth setup.
+requirements:
+  - network
 metadata: {"clawdbot":{"emoji":"📣","requires":{"bins":["node"]}}}
 ---
 
