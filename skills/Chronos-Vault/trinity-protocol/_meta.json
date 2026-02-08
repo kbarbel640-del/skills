@@ -1,0 +1,11 @@
+{
+  "owner": "Chronos-Vault",
+  "slug": "trinity-protocol",
+  "displayName": "Trinity Protocol Ecosystem",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1770576129822,
+    "commit": ""
+  },
+  "history": []
+}
