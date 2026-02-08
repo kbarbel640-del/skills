@@ -1,0 +1,8 @@
+{
+  "last_updated": "",
+  "total_orders_scraped": 0,
+  "item_frequencies": {},
+  "category_totals": {},
+  "top_items": [],
+  "notes": "Order history will be populated after first scrape. Run 'update my zepto history' to build your personalized database."
+}
