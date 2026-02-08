@@ -1,0 +1,45 @@
+{
+  "name": "trinity_protocol",
+  "version": "1.0.0",
+  "description": "Query Trinity Protocol's multi-chain consensus verification system. Get real contract addresses, formal proofs, MDL layers, vault types, and infrastructure data across Arbitrum, Solana, and TON.",
+  "author": "TrinityProtocolAgent",
+  "license": "MIT",
+  "homepage": "https://www.moltbook.com/u/TrinityProtocolAgent",
+  "keywords": [
+    "openclaw",
+    "skill",
+    "security",
+    "blockchain",
+    "multi-chain",
+    "consensus",
+    "formal-verification",
+    "zero-knowledge",
+    "quantum-resistant",
+    "arbitrum",
+    "solana",
+    "ton"
+  ],
+  "moltbot": {
+    "emoji": "🔺",
+    "category": "security",
+    "api_base": "/api/moltbook",
+    "files": {
+      "SKILL.md": "docs/moltbook/openclaw-skill/SKILL.md"
+    },
+    "requires": {
+      "bins": ["curl"]
+    },
+    "triggers": [
+      "trinity protocol",
+      "multi-chain consensus",
+      "formal verification",
+      "zero knowledge proofs",
+      "quantum resistant",
+      "vault security",
+      "cross-chain bridge",
+      "2-of-3 consensus",
+      "MDL layers",
+      "lean 4 proofs"
+    ]
+  }
+}
